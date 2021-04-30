@@ -28,6 +28,22 @@
 #include "Wire.h"
 #include "si5351.h"
 
+// Added TG 18 dec 2020
+void print_uint64_t(uint64_t num) {
+
+  char rev[128];
+  char *p = rev+1;
+
+  while (num > 0) {
+    *p++ = '0' + ( num % 10);
+    num/= 10;
+  }
+  p--;
+  //Print the number which is now in reverse
+  while (p > rev) {
+    Serial.print(*p--);
+  }
+}
 
 /********************/
 /* Public functions */
@@ -78,6 +94,9 @@ bool Si5351::init(uint8_t xtal_load_c, uint32_t xo_freq, int32_t corr)
 		{
 			status_reg = si5351_read(SI5351_DEVICE_STATUS);
 		} while (status_reg >> 7 == 1);
+
+		//DEBUG
+		//Serial.println("ready to set XO freq");
 
 		// Set crystal load capacitance
 		si5351_write(SI5351_CRYSTAL_LOAD, (xtal_load_c & SI5351_CRYSTAL_LOAD_MASK) | 0b00010010);
@@ -296,6 +315,10 @@ uint8_t Si5351::set_freq(uint64_t freq, enum si5351_clock clk)
 
 			// Select the proper R div value
 			r_div = select_r_div(&freq);
+
+			//Serial.print("freq après r_div: ");
+			//print_uint64_t(freq);
+			//Serial.println("");
 
 			// Calculate the synth parameters
 			if(pll_assignment[clk] == SI5351_PLLA)
@@ -1483,6 +1506,18 @@ uint64_t Si5351::multisynth_calc(uint64_t freq, uint64_t pll_freq, struct Si5351
 		b = 0;
 		c = 1;
 		pll_freq = a * freq;
+
+		// DEBUG TG 18 dec 2020
+		/*
+		Serial.print("a, freq, pll_freq: ");
+		Serial.print(a);
+		Serial.print(" ");
+		print_uint64_t(freq);
+		Serial.print(" ");
+		print_uint64_t(pll_freq);
+		Serial.println(" ");
+		*/
+
 	}
 	else
 	{
@@ -1504,6 +1539,17 @@ uint64_t Si5351::multisynth_calc(uint64_t freq, uint64_t pll_freq, struct Si5351
 		b = (pll_freq % freq * RFRAC_DENOM) / freq;
 		c = b ? RFRAC_DENOM : 1;
 	}
+
+		// debug
+		/*
+		Serial.print("Preset PLL. a, freq, pll_freq: ");
+		Serial.print(a);
+		Serial.print(" ");
+		print_uint64_t(freq);
+		Serial.print(" ");
+		print_uint64_t(pll_freq);
+		Serial.println(" ");
+    */
 
 	// Calculate parameters
 	if (divby4 == 1)
@@ -1758,6 +1804,9 @@ uint8_t Si5351::select_r_div(uint64_t *freq)
 		r_div = SI5351_OUTPUT_CLK_DIV_2;
 		*freq *= 2ULL;
 	}
+
+	//Serial.print("r_div: ");
+	//Serial.println(r_div);
 
 	return r_div;
 }
