@@ -4,6 +4,8 @@
  * Copyright (C) 2015 - 2019 Jason Milldrum <milldrum@gmail.com>
  *                           Dana H. Myers <k6jq@comcast.net>
  *
+ * Forked by mrguen https://github.com/mrguen/Si5351Arduino
+ *
  * Some tuning algorithms derived from clk-si5351.c in the Linux kernel.
  * Sebastian Hesselbarth <sebastian.hesselbarth@gmail.com>
  * Rabeeh Khoury <rabeeh@solid-run.com>
@@ -153,6 +155,25 @@ void Si5351::reset(void)
 	si5351_write(22, 0x0c);
 	si5351_write(23, 0x0c);
 
+	// Nullify Spread spectrum registers since I had some device with SS on from the factory
+	// Mod TG 30 june 2021
+	si5351_write(SI5351_SSC_PARAM0, 0);
+	si5351_write(SI5351_SSC_PARAM1, 0);
+	si5351_write(SI5351_SSC_PARAM2, 0);
+	si5351_write(SI5351_SSC_PARAM3, 0);
+	si5351_write(SI5351_SSC_PARAM4, 0);
+	si5351_write(SI5351_SSC_PARAM5, 0);
+	si5351_write(SI5351_SSC_PARAM6, 0);
+	si5351_write(SI5351_SSC_PARAM7, 0);
+	si5351_write(SI5351_SSC_PARAM8, 0);
+	si5351_write(SI5351_SSC_PARAM9, 0);
+	si5351_write(SI5351_SSC_PARAM10, 0);
+	si5351_write(SI5351_SSC_PARAM11, 0);
+	si5351_write(SI5351_SSC_PARAM12, 0);
+
+	// Nullify all fanouts since I had some device with all fanouts on from the factory
+	si5351_write(SI5351_FANOUT_ENABLE, 0);
+
 	// Set PLLA and PLLB to 800 MHz for automatic tuning
 	set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
 	set_pll(SI5351_PLL_FIXED, SI5351_PLLB);
@@ -219,10 +240,15 @@ uint8_t Si5351::set_freq(uint64_t freq, enum si5351_clock clk)
 		// MS0 through MS5 logic
 		// ---------------------
 
+		// Added TG 25 june 2021
+		uint64_t clkout_min_freq = lowestFrequency(pll_assignment[clk]);
+
 		// Lower bounds check
-		if(freq > 0 && freq < SI5351_CLKOUT_MIN_FREQ * SI5351_FREQ_MULT)
+		if(freq > 0 && freq < clkout_min_freq)
 		{
-			freq = SI5351_CLKOUT_MIN_FREQ * SI5351_FREQ_MULT;
+			// Modified TG 25 june 2021
+			freq = clkout_min_freq;
+			//freq = SI5351_CLKOUT_MIN_FREQ * SI5351_FREQ_MULT;
 		}
 
 		// Upper bounds check
@@ -277,7 +303,7 @@ uint8_t Si5351::set_freq(uint64_t freq, enum si5351_clock clk)
 
 						// Select the proper R div value
 						temp_freq = clk_freq[i];
-						r_div = select_r_div(&temp_freq);
+						r_div = select_r_div(&temp_freq, pll_assignment[clk]);
 
 						multisynth_calc(temp_freq, pll_freq, &temp_reg);
 
@@ -302,7 +328,7 @@ uint8_t Si5351::set_freq(uint64_t freq, enum si5351_clock clk)
 			// Reset the PLL
 			pll_reset(pll_assignment[clk]);
 		}
-		else
+		else // Requested freq < 100 MHZ
 		{
 			clk_freq[(uint8_t)clk] = freq;
 
@@ -314,11 +340,12 @@ uint8_t Si5351::set_freq(uint64_t freq, enum si5351_clock clk)
 			}
 
 			// Select the proper R div value
-			r_div = select_r_div(&freq);
+			r_div = select_r_div(&freq, pll_assignment[clk]);
 
-			//Serial.print("freq après r_div: ");
-			//print_uint64_t(freq);
-			//Serial.println("");
+			//DEGUB
+			Serial.print("freq après r_div: ");
+			print_uint64_t(freq);
+			Serial.println("");
 
 			// Calculate the synth parameters
 			if(pll_assignment[clk] == SI5351_PLLA)
@@ -347,6 +374,7 @@ uint8_t Si5351::set_freq(uint64_t freq, enum si5351_clock clk)
 		// Lower bounds check
 		if(freq > 0 && freq < SI5351_CLKOUT67_MIN_FREQ * SI5351_FREQ_MULT)
 		{
+			// Should be modified like MS0-5 logic
 			freq = SI5351_CLKOUT_MIN_FREQ * SI5351_FREQ_MULT;
 		}
 
@@ -477,10 +505,15 @@ uint8_t Si5351::set_freq_manual(uint64_t freq, uint64_t pll_freq, enum si5351_cl
 	uint8_t int_mode = 0;
 	uint8_t div_by_4 = 0;
 
+	// Added TG 25 june 2021
+	uint64_t clkout_min_freq = lowestFrequency(pll_assignment[clk]);
+
 	// Lower bounds check
-	if(freq > 0 && freq < SI5351_CLKOUT_MIN_FREQ * SI5351_FREQ_MULT)
+	if(freq > 0 && freq < clkout_min_freq)
 	{
-		freq = SI5351_CLKOUT_MIN_FREQ * SI5351_FREQ_MULT;
+		// Modified TG 25 june 2021
+		freq = clkout_min_freq;
+		//freq = SI5351_CLKOUT_MIN_FREQ * SI5351_FREQ_MULT;
 	}
 
 	// Upper bounds check
@@ -499,7 +532,7 @@ uint8_t Si5351::set_freq_manual(uint64_t freq, uint64_t pll_freq, enum si5351_cl
 	output_enable(clk, 1);
 
 	// Select the proper R div value
-	r_div = select_r_div(&freq);
+	r_div = select_r_div(&freq, pll_assignment[clk]);
 
 	// Calculate the synth parameters
 	multisynth_calc(freq, pll_freq, &ms_reg);
@@ -1508,7 +1541,7 @@ uint64_t Si5351::multisynth_calc(uint64_t freq, uint64_t pll_freq, struct Si5351
 		pll_freq = a * freq;
 
 		// DEBUG TG 18 dec 2020
-		/*
+
 		Serial.print("a, freq, pll_freq: ");
 		Serial.print(a);
 		Serial.print(" ");
@@ -1516,7 +1549,7 @@ uint64_t Si5351::multisynth_calc(uint64_t freq, uint64_t pll_freq, struct Si5351
 		Serial.print(" ");
 		print_uint64_t(pll_freq);
 		Serial.println(" ");
-		*/
+
 
 	}
 	else
@@ -1764,10 +1797,65 @@ void Si5351::ms_div(enum si5351_clock clk, uint8_t r_div, uint8_t div_by_4)
 	si5351_write(reg_addr, reg_val);
 }
 
-uint8_t Si5351::select_r_div(uint64_t *freq)
+uint64_t Si5351::lowestFrequency(si5351_pll pll_assignment)
+{
+	// Determines the lowest frequency
+	uint64_t lowestFreq;
+
+	if (pll_assignment == SI5351_PLLA) lowestFreq =  ceil(plla_freq / SI5351_MULTISYNTH_A_MAX / 128/SI5351_FREQ_MULT) * SI5351_FREQ_MULT;
+  else lowestFreq =  ceil(pllb_freq / SI5351_MULTISYNTH_A_MAX / 128/SI5351_FREQ_MULT) * SI5351_FREQ_MULT;
+
+	if (lowestFreq < SI5351_CLKOUT_MIN_FREQ * SI5351_FREQ_MULT) lowestFreq = SI5351_CLKOUT_MIN_FREQ * SI5351_FREQ_MULT;
+
+	return lowestFreq;
+};
+
+uint8_t Si5351::select_r_div(uint64_t *freq, si5351_pll pll_assignment)
 {
 	uint8_t r_div = SI5351_OUTPUT_CLK_DIV_1;
 
+	// Modified TG 25 june 2021
+	// To use the lowest frequency possible depending on the PLL frequency
+
+	uint64_t clkout_min_freq = lowestFrequency(pll_assignment);
+
+	if((*freq >= clkout_min_freq) && (*freq < clkout_min_freq * 2))
+	{
+		r_div = SI5351_OUTPUT_CLK_DIV_128;
+		*freq *= 128ULL;
+	}
+	else if((*freq >= clkout_min_freq * 2) && (*freq < clkout_min_freq * 4))
+	{
+		r_div = SI5351_OUTPUT_CLK_DIV_64;
+		*freq *= 64ULL;
+	}
+	else if((*freq >= clkout_min_freq * 4) && (*freq < clkout_min_freq * 8))
+	{
+		r_div = SI5351_OUTPUT_CLK_DIV_32;
+		*freq *= 32ULL;
+	}
+	else if((*freq >= clkout_min_freq * 8) && (*freq < clkout_min_freq * 16))
+	{
+		r_div = SI5351_OUTPUT_CLK_DIV_16;
+		*freq *= 16ULL;
+	}
+	else if((*freq >= clkout_min_freq * 16) && (*freq < clkout_min_freq * 32))
+	{
+		r_div = SI5351_OUTPUT_CLK_DIV_8;
+		*freq *= 8ULL;
+	}
+	else if((*freq >= clkout_min_freq * 32) && (*freq < clkout_min_freq * 64))
+	{
+		r_div = SI5351_OUTPUT_CLK_DIV_4;
+		*freq *= 4ULL;
+	}
+	else if((*freq >= clkout_min_freq * 64) && (*freq < clkout_min_freq * 128))
+	{
+		r_div = SI5351_OUTPUT_CLK_DIV_2;
+		*freq *= 2ULL;
+	}
+
+/*
 	// Choose the correct R divider
 	if((*freq >= SI5351_CLKOUT_MIN_FREQ * SI5351_FREQ_MULT) && (*freq < SI5351_CLKOUT_MIN_FREQ * SI5351_FREQ_MULT * 2))
 	{
@@ -1804,6 +1892,8 @@ uint8_t Si5351::select_r_div(uint64_t *freq)
 		r_div = SI5351_OUTPUT_CLK_DIV_2;
 		*freq *= 2ULL;
 	}
+
+*/
 
 	//Serial.print("r_div: ");
 	//Serial.println(r_div);

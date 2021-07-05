@@ -303,6 +303,10 @@ public:
 	void set_pll_input(enum si5351_pll, enum si5351_pll_input);
 	void set_vcxo(uint64_t, uint8_t);
   void set_ref_freq(uint32_t, enum si5351_pll_input);
+
+	// Added TG 25 june 2021
+	uint64_t lowestFrequency(si5351_pll);
+
 	uint8_t si5351_write_bulk(uint8_t, uint8_t, uint8_t *);
 	uint8_t si5351_write(uint8_t, uint8_t);
 	uint8_t si5351_read(uint8_t);
@@ -324,7 +328,11 @@ private:
 	void update_sys_status(struct Si5351Status *);
 	void update_int_status(struct Si5351IntStatus *);
 	void ms_div(enum si5351_clock, uint8_t, uint8_t);
-	uint8_t select_r_div(uint64_t *);
+
+	// Modified TG 25 june 2021
+	uint8_t select_r_div(uint64_t *, si5351_pll );
+
+	// select_r_div_ms67 should probably be modified as well
 	uint8_t select_r_div_ms67(uint64_t *);
 	int32_t ref_correction[2];
   uint8_t clkin_div;

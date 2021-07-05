@@ -38,7 +38,7 @@ long steps = 100;
 unsigned long  startFreq = 10000000;
 unsigned long  stopFreq = 100000000;
 int analogpin = 5;
-int delaytime = 50;
+int delaytime = 200;
 
 #include <si5351.h>
 #include "Wire.h"
@@ -49,13 +49,10 @@ Si5351 si5351;
 void setup()
 {
   Serial.begin(57600);
-  /*
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for Leonardo only
-  }
-  */
+  while (!Serial) {}
+  
   si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, correction);
-  si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_6MA);
+  si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_2MA);
   info();
 }
 

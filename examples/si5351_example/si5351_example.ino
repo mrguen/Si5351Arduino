@@ -37,9 +37,9 @@ void setup()
   // Set CLK0 to output 14 MHz
   si5351.set_freq(1400000000ULL, SI5351_CLK0);
 
-  // Set CLK1 to output 175 MHz
+  // Set CLK1 to output 100 MHz
   si5351.set_ms_source(SI5351_CLK1, SI5351_PLLB);
-  si5351.set_freq_manual(17500000000ULL, 70000000000ULL, SI5351_CLK1);
+  si5351.set_freq_manual(12000000000ULL, 70000000000ULL, SI5351_CLK1);
 
   // Query a status update and wait a bit to let the Si5351 populate the
   // status flags correctly.
